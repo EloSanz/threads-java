@@ -21,14 +21,25 @@ public class OrderQueue {
         }
 
         int orderId = orderIdCounter.getAndIncrement();
-        Order order = new Order(orderId, recipe, quantity);
-        orders.offer(order);
         
         System.out.println("\n📝 Nuevo pedido registrado:");
         System.out.println("   • Pedido #" + orderId);
         System.out.println("   • Plato: " + recipe.getName());
         System.out.println("   • Cantidad: " + quantity);
         kitchen.printStock("Stock antes de comenzar Pedido #" + orderId);
+
+        // Dividir el pedido en subpedidos si la cantidad es mayor a 1
+        if (quantity > 1) {
+            System.out.println("\n🔄 Dividiendo pedido para procesamiento paralelo:");
+            for (int i = 0; i < quantity; i++) {
+                Order subOrder = new Order(orderId, recipe, 1, quantity, i + 1);
+                orders.offer(subOrder);
+                System.out.println("   • Subpedido " + (i + 1) + "/" + quantity + " creado");
+            }
+        } else {
+            Order order = new Order(orderId, recipe, 1, 1, 1);
+            orders.offer(order);
+        }
     }
 
     public Order getNextOrder() {

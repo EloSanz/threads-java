@@ -50,6 +50,7 @@ public class Cook extends Thread {
                 }
 
                 System.out.println("\n" + color + "👨‍🍳 " + name + " comienza a preparar " + order.getRecipe().getName() + 
+                                 (order.getTotalSuborders() > 1 ? " (" + order.getProgressInfo() + ")" : "") +
                                  " [Pedido #" + order.getOrderId() + "]" + ANSI_RESET);
 
                 if (kitchen.acquireIngredients(order.getRecipe())) {
@@ -58,17 +59,26 @@ public class Cook extends Thread {
                     dishesCooked++;
                     order.incrementCompleted();
                     System.out.println(color + "✨ " + name + " ha completado " + order.getRecipe().getName() + 
+                                     (order.getTotalSuborders() > 1 ? " (" + order.getProgressInfo() + ")" : "") +
                                      " [Pedido #" + order.getOrderId() + "]" + ANSI_RESET);
 
-                    System.out.println(color + "🎉 ¡PEDIDO #" + order.getOrderId() + " COMPLETADO!" + ANSI_RESET);
-                    System.out.println(color + "   • Plato: " + order.getRecipe().getName() + ANSI_RESET);
-                    System.out.println(color + "   • Cocinero: " + name + ANSI_RESET);
-                    kitchen.printStock("Stock después de completar Pedido #" + order.getOrderId());
-
+                    // Solo mostrar el mensaje de completado cuando es el último subpedido
+                    if (order.getSuborderNumber() == order.getTotalSuborders()) {
+                        System.out.println(color + "🎉 ¡PEDIDO #" + order.getOrderId() + " COMPLETADO!" + ANSI_RESET);
+                        System.out.println(color + "   • Plato: " + order.getRecipe().getName() + ANSI_RESET);
+                        System.out.println(color + "   • Cantidad total: " + order.getTotalSuborders() + ANSI_RESET);
+                        System.out.println(color + "   • Cocineros participantes: " + name + 
+                                         (order.getTotalSuborders() > 1 ? " y otros" : "") + ANSI_RESET);
+                        System.out.println(color + "   • Tiempo de preparación: " + 
+                                         (order.getTotalSuborders() * 2) + " segundos" + ANSI_RESET);
+                        kitchen.printStock("Stock después de completar Pedido #" + order.getOrderId());
+                    }
                 } else {
                     System.out.println(color + "⚠️ " + name + " no pudo obtener los ingredientes para " + 
-                                     order.getRecipe().getName() + 
+                                     order.getRecipe().getName() +
+                                     (order.getTotalSuborders() > 1 ? " (" + order.getProgressInfo() + ")" : "") +
                                      " [Pedido #" + order.getOrderId() + "] - Reintentando más tarde" + ANSI_RESET);
+                    // Reencolar el subpedido
                     orderQueue.addOrder(order.getRecipe(), 1);
                     Thread.sleep(1000);
                 }

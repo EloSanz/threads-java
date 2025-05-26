@@ -38,6 +38,22 @@ public class IngredientSemaphore {
         int toAdd = Math.min(RESTOCK_AMOUNT, maxPermits - currentPermits);
         if (toAdd > 0) {
             semaphore.release(toAdd);
+            System.out.println("\n🔄 Reponiendo " + name + ":");
+            System.out.println("   • Stock anterior: " + currentPermits);
+            System.out.println("   • Cantidad añadida: +" + toAdd);
+            System.out.println("   • Stock actual: " + semaphore.availablePermits());
         }
+    }
+
+    public int getMaxPermits() {
+        return maxPermits;
+    }
+
+    public int getRestockThreshold() {
+        return RESTOCK_THRESHOLD;
+    }
+
+    public int getRestockAmount() {
+        return RESTOCK_AMOUNT;
     }
 } 

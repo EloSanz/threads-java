@@ -49,14 +49,24 @@ public class Kitchen {
         lock.lock();
         try {
             boolean restocked = false;
+            
             for (IngredientSemaphore ingredient : ingredients.values()) {
+                int available = ingredient.getAvailablePermits();
                 if (ingredient.needsRestock()) {
+                    if (!restocked) {
+                        System.out.println("\n📦 Iniciando reposición de ingredientes:");
+                    }
+                    System.out.println("\n⚠️ " + ingredient.getName() + " bajo mínimo:");
+                    System.out.println("   • Disponible: " + available);
+                    System.out.println("   • Mínimo requerido: " + ingredient.getRestockThreshold());
                     ingredient.restock();
                     restocked = true;
                 }
             }
+            
             if (restocked) {
-                printStock("📦 Stock después de reposición");
+                System.out.println("\n📊 Estado final de la cocina:");
+                printStock("Inventario después de reposición");
             }
         } finally {
             lock.unlock();
@@ -66,6 +76,14 @@ public class Kitchen {
     public void printStock(String message) {
         lock.lock();
         try {
+            // Extraer información del pedido del mensaje
+            if (message.startsWith("Stock después de completar Pedido")) {
+                String[] parts = message.split("#");
+                if (parts.length > 1) {
+                    System.out.println("\n🍽️ Resumen del pedido #" + parts[1] + ":");
+                }
+            }
+            
             System.out.println("\n📊 " + message);
             System.out.println("------------------------");
             for (IngredientSemaphore ingredient : ingredients.values()) {
