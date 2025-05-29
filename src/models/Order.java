@@ -1,4 +1,7 @@
+package models;
+
 import java.util.concurrent.atomic.AtomicInteger;
+import recipes.Recipe;
 
 public class Order {
     private int orderId;

@@ -1,6 +1,9 @@
+package kitchen;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
+import recipes.Recipe;
 
 public class Kitchen {
     private Map<String, IngredientSemaphore> ingredients;
@@ -18,6 +21,8 @@ public class Kitchen {
         ingredients.put("Lechuga", new IngredientSemaphore("Lechuga", 10));
         ingredients.put("Tomate", new IngredientSemaphore("Tomate", 10));
         ingredients.put("Queso", new IngredientSemaphore("Queso", 10));
+        ingredients.put("Tortilla", new IngredientSemaphore("Tortilla", 10));
+        ingredients.put("Salsa", new IngredientSemaphore("Salsa", 10));
     }
 
     public boolean acquireIngredients(Recipe recipe) {
@@ -76,7 +81,6 @@ public class Kitchen {
     public void printStock(String message) {
         lock.lock();
         try {
-            // Extraer información del pedido del mensaje
             if (message.startsWith("Stock después de completar Pedido")) {
                 String[] parts = message.split("#");
                 if (parts.length > 1) {

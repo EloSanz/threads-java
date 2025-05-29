@@ -1,3 +1,5 @@
+package recipes;
+
 public class Hamburguesa extends Recipe {
     public Hamburguesa() {
         super("hamburguesa");

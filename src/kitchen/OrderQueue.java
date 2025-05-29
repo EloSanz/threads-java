@@ -1,5 +1,9 @@
+package kitchen;
+
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import models.Order;
+import recipes.Recipe;
 
 public class OrderQueue {
     private ConcurrentLinkedQueue<Order> orders;

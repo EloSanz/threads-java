@@ -1,3 +1,5 @@
+package recipes;
+
 public class Ensalada extends Recipe {
     public Ensalada() {
         super("ensalada");
@@ -7,5 +9,6 @@ public class Ensalada extends Recipe {
     protected void initializeIngredients() {
         ingredients.put("Lechuga", 2);
         ingredients.put("Tomate", 2);
+        ingredients.put("Queso", 1);
     }
 } 

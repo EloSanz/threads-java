@@ -1,141 +1,129 @@
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
+import java.io.IOException;
+import java.util.Map;
+import java.util.HashMap;
 
 public class KitchenSystem {
+    private static final Map<String, Integer> INITIAL_STOCK = new HashMap<String, Integer>() {{
+        put("Pan", 20);
+        put("Carne", 15);
+        put("Lechuga", 30);
+        put("Tomate", 30);
+        put("Queso", 20);
+        put("Tortilla", 20);
+        put("Salsa", 15);
+        put("Zanahoria", 20);
+    }};
+
     public static void main(String[] args) {
-        // Crear la cocina y la cola de pedidos
-        Kitchen kitchen = new Kitchen();
-        OrderQueue orderQueue = new OrderQueue(kitchen);
+        if (args.length != 1) {
+            System.err.println("Uso: KitchenSystem <ordenes>");
+            System.err.println("Formato: plato1:cantidad1,plato2:cantidad2,...");
+            System.exit(1);
+        }
+
+        // Parsear órdenes del argumento (formato: plato:cantidad,plato:cantidad,...)
+        Map<String, Integer> orders = new HashMap<>();
+        for (String orderStr : args[0].split(",")) {
+            String[] parts = orderStr.split(":");
+            orders.put(parts[0], Integer.parseInt(parts[1]));
+        }
+
+        System.out.println("\n=== Sistema de Cocina Iniciado ===\n");
         
-        // Crear el reponedor de stock
-        StockReplenisher replenisher = new StockReplenisher(kitchen);
-        replenisher.start();
-
-        // Crear los cocineros
-        List<Cook> cooks = new ArrayList<>();
-        cooks.add(new Cook("Juan", kitchen, orderQueue));
-        cooks.add(new Cook("María", kitchen, orderQueue));
-        cooks.add(new Cook("Pedro", kitchen, orderQueue));
-
-        // Iniciar los cocineros
-        for (Cook cook : cooks) {
-            cook.start();
-        }
-
-        // Procesar pedidos desde la entrada del usuario
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("\n=== ¡Bienvenido al Sistema de Cocina! ===");
-        System.out.println("\nRecetas disponibles:");
-        System.out.println("1. Hamburguesa");
-        System.out.println("   Ingredientes por unidad:");
-        System.out.println("   - 2 panes");
-        System.out.println("   - 1 carne");
-        System.out.println("   - 1 lechuga");
-        System.out.println("   - 1 tomate");
-        System.out.println("   - 1 queso");
-        System.out.println("\n2. Ensalada");
-        System.out.println("   Ingredientes por unidad:");
-        System.out.println("   - 2 lechugas");
-        System.out.println("   - 2 tomates");
-        
-        System.out.println("\nInstrucciones:");
-        System.out.println("1. Para hacer un pedido, ingrese dos números separados por espacio:");
-        System.out.println("   - Primer número: tipo de receta (1 o 2)");
-        System.out.println("   - Segundo número: cantidad deseada");
-        System.out.println("\nEjemplos válidos:");
-        System.out.println("- '1 5' → 5 hamburguesas");
-        System.out.println("- '2 3' → 3 ensaladas");
-        System.out.println("\nPara finalizar el programa, escriba: 'fin'");
-        System.out.println("\nNuestros cocineros Juan, María y Pedro prepararán sus pedidos en paralelo.");
-        System.out.println("El sistema repondrá ingredientes automáticamente cuando sea necesario.");
-        System.out.println("\n=======================================");
-
-        while (true) {
-            try {
-                Thread.sleep(100); // Pequeña pausa para asegurar que los mensajes anteriores se muestren
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            
-            System.out.print("\nIngrese su pedido: ");
-            String input = scanner.nextLine().trim();
-
-            if (input.equalsIgnoreCase("fin")) {
-                break;
-            }
-
-            try {
-                String[] parts = input.split(" ");
-                if (parts.length != 2) {
-                    System.out.println("Error: Formato inválido. Use: <número de receta> <cantidad>");
-                    System.out.println("Ejemplo: '1 5' para cinco hamburguesas");
-                    continue;
-                }
-
-                int recipeNum = Integer.parseInt(parts[0]);
-                int quantity = Integer.parseInt(parts[1]);
-
-                if (quantity <= 0) {
-                    System.out.println("Error: La cantidad debe ser mayor a 0");
-                    continue;
-                }
-
-                Recipe recipe;
-                switch (recipeNum) {
-                    case 1:
-                        recipe = new Hamburguesa();
-                        break;
-                    case 2:
-                        recipe = new Ensalada();
-                        break;
-                    default:
-                        System.out.println("Error: Número de receta inválido. Use 1 para Hamburguesa o 2 para Ensalada");
-                        continue;
-                }
-
-                orderQueue.addOrder(recipe, quantity);
-
-            } catch (NumberFormatException e) {
-                System.out.println("Error: Por favor, ingrese números válidos");
-                System.out.println("Ejemplo: '1 5' para cinco hamburguesas");
-            }
-        }
-
-        // Dejar de aceptar nuevos pedidos
-        orderQueue.stopAccepting();
-        System.out.println("\nFinalizando: Esperando a que se completen todos los pedidos pendientes...");
-
-        // Esperar a que terminen los cocineros
-        for (Cook cook : cooks) {
-            try {
-                cook.join();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
-        // Detener el reponedor
-        replenisher.stopReplenishing();
         try {
-            replenisher.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+            // Inicializar memoria compartida
+            SharedMemory sharedMemory = new SharedMemory();
+            
+            // Inicializar stock en memoria compartida
+            for (Map.Entry<String, Integer> entry : INITIAL_STOCK.entrySet()) {
+                sharedMemory.setStock(entry.getKey(), entry.getValue());
+            }
 
-        // Mostrar resultados finales
-        System.out.println("\n=== Resultados Finales ===");
-        int totalDishes = 0;
-        for (Cook cook : cooks) {
-            System.out.println(cook.getCookName() + " preparó " + 
-                             cook.getDishesCooked() + " platos en total");
-            totalDishes += cook.getDishesCooked();
-        }
-        
-        System.out.println("\n✅ ¡ÉXITO! Se completaron todos los pedidos correctamente");
-        System.out.println("   • Total de platos preparados: " + totalDishes);
-        System.out.println("   • Estado: No se detectaron bloqueos (deadlocks)");
+            // Imprimir stock inicial
+            System.out.println("Stock inicial:");
+            INITIAL_STOCK.forEach((ingredient, quantity) -> 
+                System.out.println("• " + ingredient + ": " + quantity));
 
-        scanner.close();
+            // Imprimir órdenes recibidas
+            System.out.println("\nÓrdenes recibidas:");
+            orders.forEach((plato, cantidad) -> 
+                System.out.println("• " + cantidad + " " + plato + "(s)"));
+
+            // Lista para mantener referencia a los procesos
+            List<Process> processes = new ArrayList<>();
+
+            // Iniciar el proceso reponedor
+            Process replenisher = null;
+            try {
+                ProcessBuilder pb = new ProcessBuilder("java", "StockReplenisher");
+                pb.inheritIO();
+                replenisher = pb.start();
+                processes.add(replenisher);
+                System.out.println("\n✅ Proceso reponedor iniciado");
+            } catch (IOException e) {
+                System.err.println("Error al crear proceso reponedor: " + e.getMessage());
+            }
+
+            // Crear los procesos cocineros según las órdenes
+            int cookId = 1;
+            for (Map.Entry<String, Integer> order : orders.entrySet()) {
+                String plato = order.getKey();
+                int cantidad = order.getValue();
+                
+                // Crear un cocinero por cada plato ordenado
+                try {
+                    ProcessBuilder pb = new ProcessBuilder(
+                        "java", "CookProcess",
+                        "Cocinero" + cookId,  // nombre del cocinero
+                        plato,                // tipo de receta
+                        String.valueOf(cantidad)  // cantidad a preparar
+                    );
+                    pb.inheritIO();
+                    Process process = pb.start();
+                    processes.add(process);
+                    System.out.println("✅ Proceso cocinero creado: Cocinero" + cookId + 
+                                     " - Especialidad: " + plato + 
+                                     " - Cantidad: " + cantidad);
+                    cookId++;
+                } catch (IOException e) {
+                    System.err.println("Error al crear proceso para " + plato + ": " + e.getMessage());
+                }
+            }
+
+            // Esperar a que terminen los cocineros (todos menos el reponedor)
+            for (Process process : processes) {
+                if (process != replenisher) {
+                    try {
+                        process.waitFor();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+
+            // Terminar el reponedor
+            if (replenisher != null) {
+                replenisher.destroy();
+            }
+
+            // Mostrar resultados finales
+            System.out.println("\n=== Resumen Final de la Cocina ===");
+            System.out.println("\nStock final:");
+            INITIAL_STOCK.keySet().forEach(ingredient -> 
+                System.out.println("• " + ingredient + ": " + sharedMemory.getStock(ingredient)));
+
+            System.out.println("\nPedidos completados:");
+            orders.forEach((plato, cantidad) -> 
+                System.out.println("✅ " + cantidad + " " + plato + "(s)"));
+
+            System.out.println("\n¡Gracias por usar el Sistema de Cocina!");
+            System.exit(0);
+
+        } catch (IOException e) {
+            System.err.println("Error al inicializar la memoria compartida: " + e.getMessage());
+            System.exit(1);
+        }
     }
 } 
