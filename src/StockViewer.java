@@ -34,6 +34,9 @@ public class StockViewer {
                 System.out.println("Stock actual:");
                 System.out.println("------------------------");
 
+                // Forzar actualización del buffer
+                buffer.force();
+
                 for (Map.Entry<String, Integer> entry : OFFSETS.entrySet()) {
                     buffer.position(entry.getValue());
                     int cantidad = buffer.getInt();

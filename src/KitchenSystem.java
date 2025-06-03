@@ -2,6 +2,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
 
 public class KitchenSystem {
@@ -17,7 +18,7 @@ public class KitchenSystem {
     }};
 
     public static void main(String[] args) {
-        if (args.length != 1) {
+        if (args.length != 1) {// checked ✅
             System.err.println("Uso: KitchenSystem <ordenes>");
             System.err.println("Formato: plato1:cantidad1,plato2:cantidad2,...");
             System.exit(1);
@@ -34,36 +35,41 @@ public class KitchenSystem {
         
         try {
             // Inicializar memoria compartida
-            SharedMemory sharedMemory = new SharedMemory();
+            SharedMemory sharedMemory = new SharedMemory(); // checked ✅
             
             // Inicializar stock en memoria compartida
             for (Map.Entry<String, Integer> entry : INITIAL_STOCK.entrySet()) {
-                sharedMemory.setStock(entry.getKey(), entry.getValue());
+                sharedMemory.setStock(entry.getKey(), entry.getValue()); // checked ✅
             }
 
             // Imprimir stock inicial
             System.out.println("Stock inicial:");
             INITIAL_STOCK.forEach((ingredient, quantity) -> 
-                System.out.println("• " + ingredient + ": " + quantity));
+                System.out.println("• " + ingredient + ": " + quantity)); // checked ✅
 
             // Imprimir órdenes recibidas
             System.out.println("\nÓrdenes recibidas:");
             orders.forEach((plato, cantidad) -> 
-                System.out.println("• " + cantidad + " " + plato + "(s)"));
+                System.out.println("• " + cantidad + " " + plato + "(s)")); // checked ✅
 
             // Lista para mantener referencia a los procesos
-            List<Process> processes = new ArrayList<>();
+            List<Process> processes = new ArrayList<>(); // acá guardo a los cocineros y al reponedor
 
             // Iniciar el proceso reponedor
             Process replenisher = null;
             try {
-                ProcessBuilder pb = new ProcessBuilder("java", "StockReplenisher");
-                pb.inheritIO();
-                replenisher = pb.start();
-                processes.add(replenisher);
-                System.out.println("\n✅ Proceso reponedor iniciado");
+                ProcessBuilder pb = new ProcessBuilder(
+                    "java",
+                     "-cp", "out", "StockReplenisher"
+                );
+                pb.inheritIO(); // Heredar la entrada/salida estándar del proceso padre
+                replenisher = pb.start(); // Iniciar el proceso
+                processes.add(replenisher); // Añadir el proceso a una lista de procesos
+                System.out.println("\n✅ Proceso reponedor creado e iniciado");
             } catch (IOException e) {
                 System.err.println("Error al crear proceso reponedor: " + e.getMessage());
+                shutdownProcesses(processes);
+                System.exit(1);
             }
 
             // Crear los procesos cocineros según las órdenes
@@ -75,7 +81,7 @@ public class KitchenSystem {
                 // Crear un cocinero por cada plato ordenado
                 try {
                     ProcessBuilder pb = new ProcessBuilder(
-                        "java", "CookProcess",
+                        "java", "-cp", "out", "CookProcess",
                         "Cocinero" + cookId,  // nombre del cocinero
                         plato,                // tipo de receta
                         String.valueOf(cantidad)  // cantidad a preparar
@@ -86,9 +92,11 @@ public class KitchenSystem {
                     System.out.println("✅ Proceso cocinero creado: Cocinero" + cookId + 
                                      " - Especialidad: " + plato + 
                                      " - Cantidad: " + cantidad);
-                    cookId++;
+                    cookId++; // Incrementar el ID del cocinero
                 } catch (IOException e) {
                     System.err.println("Error al crear proceso para " + plato + ": " + e.getMessage());
+                    shutdownProcesses(processes);
+                    System.exit(1);
                 }
             }
 
@@ -102,7 +110,7 @@ public class KitchenSystem {
                     }
                 }
             }
-
+            
             // Terminar el reponedor
             if (replenisher != null) {
                 replenisher.destroy();
@@ -126,4 +134,28 @@ public class KitchenSystem {
             System.exit(1);
         }
     }
+    private static void shutdownProcesses(List<Process> processes) {
+        System.out.println("\n🔄 Cerrando procesos...");
+        for (Process process : processes) {
+            try {
+                if (process != null && process.isAlive()) {
+                    // Intenta cerrar suavemente
+                    process.destroy();
+                    
+                    // Espera hasta 1 segundo para que termine
+                    if (!process.waitFor(1, TimeUnit.SECONDS)) {
+                        System.out.println("⚠️ Forzando cierre del proceso...");
+                        process.destroyForcibly();
+                    }
+                }
+            } catch (InterruptedException e) {
+                System.err.println("Error al esperar cierre del proceso: " + e.getMessage());
+                process.destroyForcibly();
+            }
+        }
+        processes.clear();
+        System.out.println("✅ Todos los procesos cerrados correctamente");
+        // TODO: liberar memoria compartida
+    }
+    
 } 

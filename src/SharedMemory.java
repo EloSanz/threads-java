@@ -13,10 +13,26 @@ public class SharedMemory {
 
     public SharedMemory() throws IOException {
         try (RandomAccessFile file = new RandomAccessFile(SHARED_FILE, "rw")) {
-            buffer = file.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, BUFFER_SIZE);
+            try {
+                // Limpiar el archivo
+                file.setLength(0);
+                file.setLength(BUFFER_SIZE);
+                buffer = file.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, BUFFER_SIZE);
+                // Inicializar todo a 0
+                for (int i = 0; i < BUFFER_SIZE/4; i++) {
+                    buffer.putInt(0);
+                }
+                buffer.position(0);
+                stockOffsets = new HashMap<>();
+                initializeOffsets();
+            } catch (IOException e) {
+                System.err.println("Error al inicializar la memoria compartida: " + e.getMessage());
+                throw new IOException("Fallo en la inicialización de la memoria compartida", e);
+            }
+        } catch (IOException e) {
+            System.err.println("Error al abrir el archivo de memoria compartida: " + e.getMessage());
+            throw new IOException("No se pudo abrir el archivo de memoria compartida", e);
         }
-        stockOffsets = new HashMap<>();
-        initializeOffsets();
     }
 
     private void initializeOffsets() {
@@ -24,7 +40,7 @@ public class SharedMemory {
         int offset = 0;
         String[] ingredients = {
             "Pan", "Carne", "Lechuga", "Tomate", "Queso",
-            "Tortilla", "Frijoles", "Arroz", "Aguacate"
+            "Tortilla", "Salsa", "Zanahoria"
         };
         
         for (String ingredient : ingredients) {
@@ -50,6 +66,8 @@ public class SharedMemory {
         return 0;
     }
 
+    /*
+
     public boolean checkAndDecrementIngredients(Map<String, Integer> needed) {
         // Verificar si hay suficientes ingredientes
         for (Map.Entry<String, Integer> entry : needed.entrySet()) {
@@ -65,4 +83,5 @@ public class SharedMemory {
         }
         return true;
     }
+    */
 } 

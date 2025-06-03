@@ -11,7 +11,6 @@ public class StockReplenisher {
     private static final int RESTOCK_THRESHOLD = 5;
 
     public static void main(String[] args) {
-        System.out.println("📦 Proceso reponedor iniciado");
 
         try (
             RandomAccessFile sharedMemoryFile = new RandomAccessFile(SHARED_MEMORY_FILE, "rw");
