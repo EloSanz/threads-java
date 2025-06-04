@@ -1,4 +1,3 @@
-package kitchen;
 
 import java.util.concurrent.Semaphore;
 
