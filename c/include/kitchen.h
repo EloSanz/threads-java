@@ -50,6 +50,7 @@ typedef struct {
     int cooking_in_progress[NUM_RECIPES]; // cantidad en preparación de cada receta
     int total_completed;                  // total de platos completados
     int total_to_prepare;                 // total de platos a preparar
+    int replenish_needed;                 // ✨ Nueva bandera para notificación de reposición
 } SharedMemory;
 
 // Nombres de los ingredientes
@@ -79,8 +80,9 @@ void print_usage(const char* program_name);
 int parse_arguments(int argc, char* argv[], int recipes_count[NUM_RECIPES]);
 int count_active_recipes(int recipes_count[NUM_RECIPES]);
 
-// Variables globales para manejo de señales
+// Variables globales para manejo de señales y semáforos
 extern int g_shm_id;
 extern int g_sem_id;
+extern int g_sem_replenish;  // ✨ Nuevo semáforo para notificación de reposición
 
 #endif 

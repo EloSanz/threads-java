@@ -4,6 +4,7 @@
 // Variables globales para manejo de señales
 int g_shm_id = -1;
 int g_sem_id = -1;
+int g_sem_replenish = -1;  // ✨ Nuevo semáforo para notificación de reposición
 
 // Nombres de los ingredientes
 const char* INGREDIENT_NAMES[NUM_INGREDIENTS] = {
@@ -59,6 +60,7 @@ void init_shared_memory(SharedMemory* memory, int recipes_count[NUM_RECIPES]) {
     memory->should_terminate = 0;
     memory->total_completed = 0;
     memory->total_to_prepare = 0;
+    memory->replenish_needed = 0;  // ✨ Inicializar nueva bandera
     
     for (int i = 0; i < NUM_RECIPES; i++) {
         memory->recipes_to_prepare[i] = recipes_count[i];
@@ -95,10 +97,33 @@ void consume_ingredients_for_recipe(SharedMemory* memory, int recipe_index) {
         return;
     }
     
+    int need_replenish = 0;
+    
+    // Consumir ingredientes
     for (int i = 0; i < NUM_INGREDIENTS; i++) {
         memory->stock[i] -= RECIPES[recipe_index].ingredients[i];
+        
+        // ✨ Verificar si algún ingrediente quedó bajo
+        if (memory->stock[i] < MIN_STOCK) {
+            need_replenish = 1;
+        }
     }
     memory->cooking_in_progress[recipe_index]++;
+    
+    // ✨ Notificar al reponedor si es necesario
+    if (need_replenish && !memory->replenish_needed) {
+        memory->replenish_needed = 1;
+        
+        // Señalar al reponedor (incrementar semáforo de notificación)
+        if (g_sem_replenish != -1) {
+            struct sembuf sb = {0, 1, 0}; // semáforo índice 0, +1
+            if (semop(g_sem_replenish, &sb, 1) == -1) {
+                perror("semop notify replenisher failed");
+            } else {
+                printf("🔔 Cocinero notificó necesidad de reposición\n");
+            }
+        }
+    }
 }
 
 // Mostrar recetas disponibles
@@ -177,38 +202,37 @@ int count_active_recipes(int recipes_count[NUM_RECIPES]) {
 
 // Limpieza de recursos mejorada
 void cleanup_resources(int shm_id, int sem_id) {
-    int errors = 0;
+    printf("Limpiando recursos del sistema...\n");
     
     // Limpiar memoria compartida
     if (shm_id != -1) {
         if (shmctl(shm_id, IPC_RMID, NULL) == -1) {
-            if (errno != EINVAL) { // EINVAL significa que ya fue removida
-                perror("Error al liberar memoria compartida");
-                errors++;
-            }
+            perror("shmctl IPC_RMID failed");
         } else {
             printf("✓ Memoria compartida liberada (ID: %d)\n", shm_id);
         }
     }
     
-    // Limpiar semáforos
+    // Limpiar semáforo principal
     if (sem_id != -1) {
         if (semctl(sem_id, 0, IPC_RMID) == -1) {
-            if (errno != EINVAL) { // EINVAL significa que ya fue removido
-                perror("Error al liberar semáforo");
-                errors++;
-            }
+            perror("semctl IPC_RMID failed");
         } else {
-            printf("✓ Semáforo liberado (ID: %d)\n", sem_id);
+            printf("✓ Semáforo principal liberado (ID: %d)\n", sem_id);
         }
     }
     
-    if (errors > 0) {
-        printf("⚠️  Se encontraron %d errores durante la limpieza\n", errors);
+    // ✨ Limpiar semáforo de reposición
+    if (g_sem_replenish != -1) {
+        if (semctl(g_sem_replenish, 0, IPC_RMID) == -1) {
+            perror("semctl replenish IPC_RMID failed");
+        } else {
+            printf("✓ Semáforo de reposición liberado (ID: %d)\n", g_sem_replenish);
+        }
     }
 }
 
-// Manejador de señal SIGTERM
+// Manejador de señales mejorado
 void handle_sigterm(int signum) {
     printf("\nRecibida señal de terminación\n");
     cleanup_resources(g_shm_id, g_sem_id);

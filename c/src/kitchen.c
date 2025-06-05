@@ -85,7 +85,7 @@ void specialized_cook_process(int shm_id, int sem_id, int cook_id, int recipe_in
     exit(0);
 }
 
-// Proceso reponedor mejorado
+// Proceso reponedor event-driven
 void replenisher_process(int shm_id, int sem_id) {
     SharedMemory* memory = shmat(shm_id, NULL, 0);
     if (memory == (void *)-1) {
@@ -97,28 +97,47 @@ void replenisher_process(int shm_id, int sem_id) {
     signal(SIGTERM, SIG_DFL);
     signal(SIGINT, SIG_DFL);
 
-    printf("Reponedor iniciado\n");
+    printf("Reponedor iniciado (modo event-driven)\n");
     
     while (1) {
+        // ✨ ESPERAR notificación (bloqueo hasta que se necesite reponer)
+        struct sembuf sb = {0, -1, 0}; // semáforo índice 0, -1
+        if (semop(g_sem_replenish, &sb, 1) == -1) {
+            if (errno == EINTR) continue; // Interrumpido por señal
+            perror("semop wait for replenish failed");
+            break;
+        }
+        
+        // Obtener acceso exclusivo
         sem_lock(sem_id);
         
         if (memory->should_terminate) {
             sem_unlock(sem_id);
             break;
         }
-
+        
+        printf("🔔 Reponedor activado por notificación\n");
+        
         // Reponer ingredientes bajos
+        int replenished = 0;
         for (int i = 0; i < NUM_INGREDIENTS; i++) {
             if (memory->stock[i] < MIN_STOCK) {
                 int to_add = MAX_STOCK - memory->stock[i];
                 memory->stock[i] = MAX_STOCK;
                 printf("📦 Reponiendo %d unidades de %s (stock: %d)\n", 
                        to_add, INGREDIENT_NAMES[i], memory->stock[i]);
+                replenished = 1;
             }
         }
-
+        
+        // Resetear bandera
+        memory->replenish_needed = 0;
+        
         sem_unlock(sem_id);
-        sleep(1); // Revisar cada segundo
+        
+        if (replenished) {
+            printf("✅ Reposición completada\n");
+        }
     }
 
     if (shmdt(memory) == -1) {
@@ -234,7 +253,7 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    // Crear semáforo
+    // Crear semáforo principal (mutex)
     g_sem_id = semget(key, 1, IPC_CREAT | 0666);
     if (g_sem_id == -1) {
         perror("semget failed");
@@ -242,9 +261,25 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    // Inicializar semáforo
+    // ✨ Crear semáforo de notificación para reposición
+    key_t replenish_key = ftok(".", 'R');
+    g_sem_replenish = semget(replenish_key, 1, IPC_CREAT | 0666);
+    if (g_sem_replenish == -1) {
+        perror("semget replenish failed");
+        cleanup_resources(g_shm_id, g_sem_id);
+        exit(1);
+    }
+
+    // Inicializar semáforos
     if (semctl(g_sem_id, 0, SETVAL, 1) == -1) {
-        perror("semctl failed");
+        perror("semctl mutex failed");
+        cleanup_resources(g_shm_id, g_sem_id);
+        exit(1);
+    }
+    
+    // ✨ Inicializar semáforo de notificación en 0 (sin notificaciones pendientes)
+    if (semctl(g_sem_replenish, 0, SETVAL, 0) == -1) {
+        perror("semctl replenish failed");
         cleanup_resources(g_shm_id, g_sem_id);
         exit(1);
     }
