@@ -6,6 +6,11 @@ int g_shm_id = -1;
 int g_sem_id = -1;
 int g_sem_replenish = -1;  // ✨ Nuevo semáforo para notificación de reposición
 
+// ✨ Nuevas variables para supervisión de procesos
+volatile sig_atomic_t g_child_died = 0;  // Bandera para SIGCHLD
+pid_t* g_child_pids = NULL;              // Array de PIDs de procesos hijo
+int g_child_count = 0;                   // Número de procesos hijo
+
 // Nombres de los ingredientes
 const char* INGREDIENT_NAMES[NUM_INGREDIENTS] = {
     "Pan", "Carne", "Lechuga", "Tomate", "Queso", "Tortilla", "Salsa", "Zanahoria"
@@ -237,4 +242,59 @@ void handle_sigterm(int signum) {
     printf("\nRecibida señal de terminación\n");
     cleanup_resources(g_shm_id, g_sem_id);
     exit(0);
-} 
+}
+
+// ✨ Nuevo manejador para muerte de procesos hijo
+void handle_sigchld(int signum) {
+    g_child_died = 1;  // Marcar que un hijo murió
+}
+
+// ✨ Función para verificar qué proceso murió
+pid_t check_dead_children() {
+    int status;
+    pid_t dead_pid;
+    
+    // Verificar todos los hijos sin bloquear
+    while ((dead_pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        // Verificar si el proceso terminó anormalmente
+        if (WIFSIGNALED(status)) {
+            printf("🚨 Proceso hijo %d terminó por señal %d (%s)\n", 
+                   dead_pid, WTERMSIG(status), strsignal(WTERMSIG(status)));
+            return dead_pid;
+        } else if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+            printf("🚨 Proceso hijo %d terminó con error (código: %d)\n", 
+                   dead_pid, WEXITSTATUS(status));
+            return dead_pid;
+        }
+        // Si terminó normalmente (WEXITSTATUS == 0), continuar
+    }
+    
+    return 0;  // No hay procesos muertos anormalmente
+}
+
+// ✨ Función para terminar todos los procesos hijo
+void terminate_all_children() {
+    printf("🛑 Terminando todos los procesos hijo...\n");
+    
+    for (int i = 0; i < g_child_count; i++) {
+        if (g_child_pids[i] > 0) {
+            if (kill(g_child_pids[i], 0) == 0) {  // Verificar si el proceso existe
+                printf("   Terminando proceso %d\n", g_child_pids[i]);
+                kill(g_child_pids[i], SIGTERM);
+            }
+        }
+    }
+    
+    // Esperar un momento para terminación limpia
+    sleep(1);
+    
+    // Forzar terminación si es necesario
+    for (int i = 0; i < g_child_count; i++) {
+        if (g_child_pids[i] > 0) {
+            if (kill(g_child_pids[i], 0) == 0) {  // Si aún existe
+                printf("   Forzando terminación de proceso %d\n", g_child_pids[i]);
+                kill(g_child_pids[i], SIGKILL);
+            }
+        }
+    }
+}

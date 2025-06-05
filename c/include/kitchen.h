@@ -14,6 +14,11 @@
 #include <errno.h>
 #include <time.h>
 
+// Para macOS/Linux compatibility
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #define SHM_SIZE 1024
 #define NUM_INGREDIENTS 8
 #define MAX_STOCK 15
@@ -71,6 +76,11 @@ void sem_unlock(int sem_id);
 void cleanup_resources(int shm_id, int sem_id);
 void handle_sigterm(int signum);
 
+// ✨ Nuevas funciones para supervisión de procesos
+void handle_sigchld(int signum);
+pid_t check_dead_children();
+void terminate_all_children();
+
 // Funciones de recetas
 int can_cook_recipe(SharedMemory* memory, int recipe_index);
 void consume_ingredients_for_recipe(SharedMemory* memory, int recipe_index);
@@ -84,5 +94,10 @@ int count_active_recipes(int recipes_count[NUM_RECIPES]);
 extern int g_shm_id;
 extern int g_sem_id;
 extern int g_sem_replenish;  // ✨ Nuevo semáforo para notificación de reposición
+
+// ✨ Variables globales para supervisión de procesos
+extern volatile sig_atomic_t g_child_died;
+extern pid_t* g_child_pids;
+extern int g_child_count;
 
 #endif 

@@ -296,10 +296,15 @@ int main(int argc, char* argv[]) {
     // Configurar manejador de señales
     signal(SIGTERM, handle_sigterm);
     signal(SIGINT, handle_sigterm);
+    signal(SIGCHLD, handle_sigchld);  // ✨ Nuevo manejador para muerte de hijos
 
     // Crear procesos hijos
     pid_t pids[MAX_CHILDREN];
     int process_count = 0;
+
+    // ✨ Configurar arrays globales para supervisión
+    g_child_pids = pids;
+    g_child_count = 0;
 
     // Crear cocineros especializados (uno por receta activa)
     for (int i = 0; i < NUM_RECIPES; i++) {
@@ -315,6 +320,7 @@ int main(int argc, char* argv[]) {
                 exit(0);
             }
             process_count++;
+            g_child_count++;  // ✨ Incrementar contador global
         }
     }
 
@@ -330,6 +336,7 @@ int main(int argc, char* argv[]) {
         exit(0);
     }
     process_count++;
+    g_child_count++;  // ✨ Incrementar contador global
 
     // Crear monitor
     pids[process_count] = fork();
@@ -343,13 +350,28 @@ int main(int argc, char* argv[]) {
         exit(0);
     }
     process_count++;
+    g_child_count++;  // ✨ Incrementar contador global
 
-    // Esperar a que se completen todos los menús
+    // ✨ Esperar a que se completen todos los menús CON SUPERVISIÓN DE PROCESOS
     printf("Presiona Enter para terminar el programa manualmente, o espera a que se completen todos los menús...\n");
+    printf("🛡️  Supervisión activa: si un cocinero muere, el sistema se cerrará automáticamente\n");
     
-    // Monitorear el progreso
+    // Monitorear el progreso con supervisión de procesos
     int manual_termination = 0;
+    int process_died = 0;
     while (1) {
+        // ✨ Verificar si algún proceso hijo murió
+        if (g_child_died) {
+            g_child_died = 0;  // Resetear bandera
+            pid_t dead_pid = check_dead_children();
+            if (dead_pid > 0) {
+                printf("\n💀 PROCESO CRÍTICO MURIÓ: PID %d\n", dead_pid);
+                printf("🛑 CERRANDO SISTEMA COMPLETO POR SEGURIDAD...\n");
+                process_died = 1;
+                break;
+            }
+        }
+        
         sem_lock(g_sem_id);
         if (memory->total_completed >= memory->total_to_prepare) {
             printf("\n🎉 ¡Todos los menús han sido completados!\n");
@@ -380,38 +402,20 @@ int main(int argc, char* argv[]) {
     memory->should_terminate = 1;
     sem_unlock(g_sem_id);
 
-    // Dar tiempo a los procesos para que vean la señal de terminación
-    printf("Esperando que los procesos terminen limpiamente...\n");
-    sleep(1);
-
-    // Enviar señal SIGTERM a todos los procesos hijo por si acaso
-    for (int i = 0; i < process_count; i++) {
-        if (pids[i] > 0) {
-            kill(pids[i], SIGTERM);
-        }
-    }
-
-    // Esperar a que todos los procesos hijo terminen con timeout
-    for (int i = 0; i < process_count; i++) {
-        if (pids[i] > 0) {
-            int status;
-            pid_t result = waitpid(pids[i], &status, WNOHANG);
-            if (result == 0) {
-                // El proceso aún está ejecutándose, forzar terminación
-                printf("Forzando terminación del proceso %d...\n", pids[i]);
-                kill(pids[i], SIGKILL);
-                waitpid(pids[i], &status, 0);
-            }
-        }
-    }
+    // ✨ Terminar todos los procesos usando la nueva función
+    terminate_all_children();
 
     // Mostrar estado final
     printf("\n🏁 === RESUMEN FINAL ===\n");
-    if (manual_termination) {
-        printf("Terminación manual - Menús completados: %d/%d\n", 
+    if (process_died) {
+        printf("💀 Terminación por muerte de proceso - Menús completados: %d/%d\n", 
+               memory->total_completed, memory->total_to_prepare);
+    } else if (manual_termination) {
+        printf("⏹️  Terminación manual - Menús completados: %d/%d\n", 
                memory->total_completed, memory->total_to_prepare);
     } else {
-        printf("Menús completados: %d/%d\n", memory->total_completed, memory->total_to_prepare);
+        printf("✅ Terminación normal - Menús completados: %d/%d\n", 
+               memory->total_completed, memory->total_to_prepare);
     }
     
     printf("\n📊 Completados por receta:\n");
